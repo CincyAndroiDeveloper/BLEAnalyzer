@@ -13,6 +13,7 @@ import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.ParcelUuid;
@@ -20,6 +21,9 @@ import android.os.Parcelable;
 import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
+import android.support.design.R.id;
+import android.support.design.widget.CoordinatorLayout;
+import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
@@ -55,13 +59,17 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
     public static final String SELECTED_DEVICE = "SELECTED_DEVICE";
     BluetoothAdapter mAdapter;
     DeviceAdapter mDeviceAdapter;
+
+    CoordinatorLayout mParentLayout;
     RecyclerView deviceList;
     EditText mFilterTxtVw;
+    Snackbar mSnackbar;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.list_le_activity_xml);
+        mParentLayout = (CoordinatorLayout) findViewById(R.id.coordinatorLayout);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         mFilterTxtVw = (EditText) findViewById(R.id.services_uuid);
         mFilterTxtVw.setOnEditorActionListener(this);
@@ -91,31 +99,46 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
     protected void onStart() {
         super.onStart();
         if(mAdapter == null) {
-            // TODO
+            mSnackbar = Snackbar.make(mParentLayout, "Bluetooth unsupported", Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Finish", new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            mSnackbar.dismiss();
+                            // f
+                            finish();
+                        }
+                    });
+            mSnackbar.setActionTextColor(Color.RED);
+            View sbView = mSnackbar.getView();
+            TextView textView = (TextView) sbView.findViewById(id.snackbar_text);
+            textView.setTextColor(Color.RED);
+            mSnackbar.show();
             return;
         }
         else if(!mAdapter.isEnabled()) {
-            // TODO
+            mSnackbar = Snackbar.make(mParentLayout, "Bluetooth not enabled", Snackbar.LENGTH_INDEFINITE)
+                    .setAction("Enable", new View.OnClickListener() {
+                        @Override
+                        public void onClick(View v) {
+                            mSnackbar.dismiss();
+                            Intent enableBtIntent = new Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE);
+                            startActivityForResult(enableBtIntent, 101);
+                        }
+                    });
+            mSnackbar.setActionTextColor(Color.YELLOW);
+            View sbView = mSnackbar.getView();
+            TextView textView = (TextView) sbView.findViewById(id.snackbar_text);
+            textView.setTextColor(Color.WHITE);
+            mSnackbar.show();
             return;
         }
         else if(!hasPermission()) {
             ActivityCompat.requestPermissions(this,
-                    new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_CODE);
+                    new String[]{permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_CODE);
             return;
         }
-
-        String uuid = mFilterTxtVw.getText().toString();
-        if(uuid.length() == 36) {
-            // Stop the old scan.
-            stopLEScan();
-            mDeviceAdapter.clearData();
-            // Start a new scan.
-            startLEScan(UUID.fromString(uuid));
-            return;
-        }
-        else {
-            startLEScan();
-        }
+        // We didn't get caught before this so start an LE Scan.
+        startLEScan();
     }
 
     @Override
@@ -131,6 +154,45 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
         }
     }
 
+    @Override
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+        if(requestCode == 101) {
+            if(resultCode == RESULT_OK) {
+                // Make sure we have our premission in order.
+                if(!hasPermission()) {
+                    ActivityCompat.requestPermissions(this,
+                            new String[]{permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_CODE);
+                    return;
+                }
+                else {
+                    // We didn't get caught before this so start an LE Scan.
+                    startLEScan();
+                }
+            }
+            else {
+                mSnackbar = Snackbar.make(mParentLayout, "Bluetooth not enabled", Snackbar.LENGTH_INDEFINITE)
+                        .setAction("Finish", new View.OnClickListener() {
+                            @Override
+                            public void onClick(View v) {
+                                mSnackbar.dismiss();
+                                finish();
+                            }
+                        });
+                mSnackbar.setActionTextColor(Color.YELLOW);
+                View sbView = mSnackbar.getView();
+                TextView textView = (TextView) sbView.findViewById(id.snackbar_text);
+                textView.setTextColor(Color.WHITE);
+                mSnackbar.show();
+            }
+        }
+    }
+
+    /**
+     * Helper method for checking if we have the location permission.
+     *
+     * @return
+     */
     boolean hasPermission() {
         return (ContextCompat.checkSelfPermission(this,
                 permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED);
@@ -143,35 +205,46 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
         intent.putExtra(SELECTED_DEVICE, mDeviceAdapter.getDevice(position).device);
         startActivity(intent);
     }
+
+    /**
+     * Helper method for starting an LE scan.
+     */
     public void startLEScan() {
         startLEScan(null);
     }
 
+    /**
+     * Starts an LE scan using the appriopriate api based on the API level.
+     *
+     * @param uuid  The UUID the device must broadcast a service for inorder to be returned to our scan callback.
+     */
     public void startLEScan(UUID uuid) {
         if(mAdapter != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 BluetoothLeScanner bluetoothLeScanner = mAdapter.getBluetoothLeScanner();
-                // Customize the ScanSettings to aggressively scan for the Bluetooth LE.
-                ScanSettings.Builder builder = new ScanSettings.Builder();
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    builder.setCallbackType(CALLBACK_TYPE_ALL_MATCHES);
-                }
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                    builder.setMatchMode(MATCH_MODE_AGGRESSIVE);
-                }
-                builder.setReportDelay(0);
-                builder.setScanMode(SCAN_MODE_LOW_LATENCY);
+                if(bluetoothLeScanner != null) {
+                    // Customize the ScanSettings to aggressively scan for the Bluetooth LE.
+                    ScanSettings.Builder builder = new ScanSettings.Builder();
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        builder.setCallbackType(CALLBACK_TYPE_ALL_MATCHES);
+                    }
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        builder.setMatchMode(MATCH_MODE_AGGRESSIVE);
+                    }
+                    // We want a delay as short as possible. Don't wait to return the result.
+                    builder.setReportDelay(0);
+                    builder.setScanMode(SCAN_MODE_LOW_LATENCY);
+                    List<ScanFilter> filters = null;
+                    if(uuid != null) {
+                        ScanFilter.Builder filterBuilder = new ScanFilter.Builder();
+                        filterBuilder.setServiceUuid(new ParcelUuid(uuid));
+                        // Create a new list to store the ScanFilter before passing it to the bluetoothLEScanner.
+                        filters = new ArrayList<>();
+                        filters.add(filterBuilder.build());
+                    }
 
-                List<ScanFilter> filters = null;
-                if(uuid != null) {
-                    ScanFilter.Builder filterBuilder = new ScanFilter.Builder();
-                    filterBuilder.setServiceUuid(new ParcelUuid(uuid));
-                    // Create a new list to store the ScanFilter before passing it to the bluetoothLEScanner.
-                    filters = new ArrayList<>();
-                    filters.add(filterBuilder.build());
+                    bluetoothLeScanner.startScan(filters, builder.build(), mScanCallback);
                 }
-
-                bluetoothLeScanner.startScan(filters, builder.build(), mScanCallback);
             }
             else {
                 mAdapter.startLeScan(new UUID[] {uuid}, this);
@@ -179,11 +252,16 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
         }
     }
 
+    /**
+     * Stops an LE scan.
+     */
     public void stopLEScan() {
         if(mAdapter != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 BluetoothLeScanner bluetoothLeScanner = mAdapter.getBluetoothLeScanner();
-                bluetoothLeScanner.stopScan(mScanCallback);
+                if(bluetoothLeScanner != null) {
+                    bluetoothLeScanner.stopScan(mScanCallback);
+                }
             }
             else {
                 mAdapter.stopLeScan(this);
@@ -200,6 +278,7 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
     @Override
     public void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
+        // If we are changing configurations, save the current adapter data set.
         if(isChangingConfigurations()) {
             outState.putParcelableArrayList(DEVICE_ARRAYLIST, mDeviceAdapter.getDevices());
         }
@@ -223,6 +302,7 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
     public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
         if (EditorInfo.IME_ACTION_DONE == actionId) {
             String uuid = mFilterTxtVw.getText().toString();
+            // The UUID string must be 36 characters long. needs to include dashes to be considered valud!!!!
             if(uuid.length() == 36) {
                 // Stop the old scan.
                 stopLEScan();
@@ -244,6 +324,7 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
      */
     public void scan(View view) {
         String uuid = mFilterTxtVw.getText().toString();
+        // The UUID string must be 36 characters long. needs to include dashes to be considered valud!!!!
         if(uuid.length() == 36) {
             // Stop the old scan.
             stopLEScan();
@@ -253,6 +334,10 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
             return;
         }
         else {
+            // Stop the old scan.
+            stopLEScan();
+            mDeviceAdapter.clearData();
+            // If the string wasn't 36 characters, start an LE scan with no filter
             startLEScan();
         }
         mFilterTxtVw.setError("Enter a valid UUID String");

@@ -15,7 +15,9 @@ import android.os.Build.VERSION;
 import android.os.Build.VERSION_CODES;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.SystemClock;
 import android.support.annotation.Nullable;
+import android.support.design.widget.CoordinatorLayout;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
@@ -39,6 +41,7 @@ public class ConnectionActivity extends AppCompatActivity {
     boolean mConnecting = false;
     Handler mhandler;
 
+    CoordinatorLayout mParentLayout;
     ImageView connIndicator;
     Button connectionBtn;
     Button discoverBtn;
@@ -50,12 +53,15 @@ public class ConnectionActivity extends AppCompatActivity {
     TextView mCharacteristicTxtVw;
     private BluetoothGattService mSelectedService;
     private BluetoothGattCharacteristic mSelectedCharac;
+    long startConnectTime = 0L;
+    long stopConnectTime = 0L;
+    long startDiscoveryTime = 0L;
+    long stopDiscoveryTime = 0L;
 
     @Override
     protected void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         mhandler = new Handler();
-
         setContentView(R.layout.connection_activity);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         connIndicator = (ImageView) findViewById(R.id.connection_indicator);
@@ -103,11 +109,12 @@ public class ConnectionActivity extends AppCompatActivity {
         connectionBtn.setEnabled(false);
         if(!mConnected) {
             mConnecting = true;
+            startConnectTime = System.currentTimeMillis();
             if (VERSION.SDK_INT >= VERSION_CODES.M) {
-                mBluetoothGatt = mDevice.connectGatt(this, false, mGattCallback, BluetoothDevice.TRANSPORT_LE);
+                mBluetoothGatt = mDevice.connectGatt(getApplicationContext(), false, mGattCallback, BluetoothDevice.TRANSPORT_LE);
             }
             else {
-                mBluetoothGatt = mDevice.connectGatt(this, false, mGattCallback);
+                mBluetoothGatt = mDevice.connectGatt(getApplicationContext(), false, mGattCallback);
             }
         }
         else {
@@ -122,6 +129,7 @@ public class ConnectionActivity extends AppCompatActivity {
         public void onConnectionStateChange(BluetoothGatt gatt, int status, int newState) {
             mhandler.removeCallbacksAndMessages(null);
             if(newState ==  BluetoothProfile.STATE_CONNECTED) {
+                stopConnectTime = System.currentTimeMillis();
                 mConnected = true;
                 mhandler.post(connected.setMessage("CONNECTED"));
                 mConnecting = false;
@@ -140,6 +148,7 @@ public class ConnectionActivity extends AppCompatActivity {
         @Override
         public void onServicesDiscovered(BluetoothGatt gatt, int status) {
             super.onServicesDiscovered(gatt, status);
+            stopDiscoveryTime = System.currentTimeMillis();
             mhandler.post(servicesDiscovered.addServices(gatt.getServices()));
         }
     };
@@ -156,17 +165,19 @@ public class ConnectionActivity extends AppCompatActivity {
 
         @Override
         public void run() {
+            long diff = stopDiscoveryTime - startDiscoveryTime;
             mGattServiceAdapter.addServices(gattServices);
             discoverBtn.setEnabled(true);
-            Toast.makeText(ConnectionActivity.this, "Services Discovered!!!", Toast.LENGTH_SHORT).show();
+            Toast.makeText(ConnectionActivity.this, "Services Discovered! time taken " + diff + " ms", Toast.LENGTH_SHORT).show();
         }
     };
 
     MessageRunnable connected = new MessageRunnable() {
         @Override
         public void run() {
+            long diff = stopConnectTime - startConnectTime;
             discoverBtn.setEnabled(true);
-            Toast.makeText(ConnectionActivity.this, message, Toast.LENGTH_SHORT).show();
+            Toast.makeText(ConnectionActivity.this, message + " time taken: " + diff + " mS", Toast.LENGTH_SHORT).show();
             connActDrawable.setColorFilter(new PorterDuffColorFilter(Color.GREEN, Mode.SRC));
             connectionBtn.setText(R.string.disconnect);
             connectionBtn.setEnabled(true);
@@ -190,8 +201,9 @@ public class ConnectionActivity extends AppCompatActivity {
         view.setEnabled(false);
         mGattServiceAdapter.clearData();
         mGattCharacAdapter.clearData();
-        Toast.makeText(ConnectionActivity.this, "Discovering Services!!!", Toast.LENGTH_SHORT).show();
+        Toast.makeText(ConnectionActivity.this, "Discovering Services!", Toast.LENGTH_SHORT).show();
         if(mBluetoothGatt != null) {
+            startDiscoveryTime = System.currentTimeMillis();
             mBluetoothGatt.discoverServices();
         }
     }
