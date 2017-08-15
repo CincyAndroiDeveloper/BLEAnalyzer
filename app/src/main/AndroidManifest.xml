@@ -1,0 +1,32 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+
+    package="com.simpleware.jonathan.bleanalyzer">
+    <!--We need this to actually utilize the bluetooth device-->
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <!--We need this to actually perform scans for Bluetooth Devices-->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
+
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+
+    <application
+        android:allowBackup="true"
+        android:icon="@mipmap/ic_launcher"
+        android:label="@string/app_name"
+        android:roundIcon="@mipmap/ic_launcher_round"
+        android:supportsRtl="true"
+        android:theme="@style/AppTheme">
+
+        <activity android:name=".ListLEDevicesActivity"
+            android:label="LEScanner">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+        <activity android:name=".ConnectionActivity"
+            android:label="Connectr"
+            android:parentActivityName=".ListLEDevicesActivity">
+        </activity>
+    </application>
+
+</manifest>
