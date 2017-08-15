@@ -1,18 +1,21 @@
 package com.simpleware.jonathan.bleanalyzer;
 
 import android.Manifest;
+import android.Manifest.permission;
 import android.annotation.TargetApi;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothManager;
 import android.bluetooth.le.BluetoothLeScanner;
 import android.bluetooth.le.ScanCallback;
+import android.bluetooth.le.ScanFilter;
 import android.bluetooth.le.ScanResult;
 import android.bluetooth.le.ScanSettings;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.ParcelUuid;
 import android.os.Parcelable;
 import android.os.PersistableBundle;
 import android.support.annotation.NonNull;
@@ -24,9 +27,16 @@ import android.support.v7.widget.LinearLayoutManager;
 import android.support.v7.widget.RecyclerView;
 import android.support.v7.widget.SimpleItemAnimator;
 import android.support.v7.widget.Toolbar;
+import android.text.Editable;
+import android.view.KeyEvent;
 import android.view.View;
+import android.view.inputmethod.EditorInfo;
+import android.widget.EditText;
+import android.widget.TextView;
 
 import java.util.ArrayList;
+import java.util.List;
+import java.util.UUID;
 
 import static android.bluetooth.le.ScanSettings.CALLBACK_TYPE_ALL_MATCHES;
 import static android.bluetooth.le.ScanSettings.MATCH_MODE_AGGRESSIVE;
@@ -38,24 +48,29 @@ import static android.bluetooth.le.ScanSettings.SCAN_MODE_LOW_LATENCY;
  */
 
 @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-public class ListLEDevicesActivity extends AppCompatActivity implements BluetoothAdapter.LeScanCallback, ViewOnClickListener {
+public class ListLEDevicesActivity extends AppCompatActivity implements BluetoothAdapter.LeScanCallback, ViewOnClickListener, TextView.OnEditorActionListener {
 
     public static final int PERMISSION_REQUEST_CODE = 1170;
     public static final String DEVICE_ARRAYLIST = "DEVICE_ARRAYLIST";
     public static final String SELECTED_DEVICE = "SELECTED_DEVICE";
-    RecyclerView deviceList;
     BluetoothAdapter mAdapter;
     DeviceAdapter mDeviceAdapter;
+    RecyclerView deviceList;
+    EditText mFilterTxtVw;
 
     @Override
     public void onCreate(@Nullable Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.list_le_activity_xml);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
+        mFilterTxtVw = (EditText) findViewById(R.id.services_uuid);
+        mFilterTxtVw.setOnEditorActionListener(this);
+
         setSupportActionBar(toolbar);
         deviceList = (RecyclerView) findViewById(R.id.device_list);
         deviceList.setAdapter(mDeviceAdapter = new DeviceAdapter(this));
         deviceList.setLayoutManager(new LinearLayoutManager(this));
+
         RecyclerView.ItemAnimator animator = deviceList.getItemAnimator();
         if (animator instanceof SimpleItemAnimator) {
             ((SimpleItemAnimator) animator).setSupportsChangeAnimations(false);
@@ -88,7 +103,19 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
                     new String[]{Manifest.permission.ACCESS_COARSE_LOCATION}, PERMISSION_REQUEST_CODE);
             return;
         }
-        startLEScan();
+
+        String uuid = mFilterTxtVw.getText().toString();
+        if(uuid.length() == 36) {
+            // Stop the old scan.
+            stopLEScan();
+            mDeviceAdapter.clearData();
+            // Start a new scan.
+            startLEScan(UUID.fromString(uuid));
+            return;
+        }
+        else {
+            startLEScan();
+        }
     }
 
     @Override
@@ -106,7 +133,7 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
 
     boolean hasPermission() {
         return (ContextCompat.checkSelfPermission(this,
-                Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED);
+                permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED);
     }
 
     @Override
@@ -116,8 +143,11 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
         intent.putExtra(SELECTED_DEVICE, mDeviceAdapter.getDevice(position).device);
         startActivity(intent);
     }
-
     public void startLEScan() {
+        startLEScan(null);
+    }
+
+    public void startLEScan(UUID uuid) {
         if(mAdapter != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 BluetoothLeScanner bluetoothLeScanner = mAdapter.getBluetoothLeScanner();
@@ -131,10 +161,20 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
                 }
                 builder.setReportDelay(0);
                 builder.setScanMode(SCAN_MODE_LOW_LATENCY);
-                bluetoothLeScanner.startScan(null, builder.build(), mScanCallback);
+
+                List<ScanFilter> filters = null;
+                if(uuid != null) {
+                    ScanFilter.Builder filterBuilder = new ScanFilter.Builder();
+                    filterBuilder.setServiceUuid(new ParcelUuid(uuid));
+                    // Create a new list to store the ScanFilter before passing it to the bluetoothLEScanner.
+                    filters = new ArrayList<>();
+                    filters.add(filterBuilder.build());
+                }
+
+                bluetoothLeScanner.startScan(filters, builder.build(), mScanCallback);
             }
             else {
-                mAdapter.startLeScan(this);
+                mAdapter.startLeScan(new UUID[] {uuid}, this);
             }
         }
     }
@@ -178,4 +218,56 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
         // Pass in the newly scanned LE device.. The adapter will handle updating the RecyclerView.
         mDeviceAdapter.addDeviceAndRssi(device, rssi);
     }
+
+    @Override
+    public boolean onEditorAction(TextView v, int actionId, KeyEvent event) {
+        if (EditorInfo.IME_ACTION_DONE == actionId) {
+            String uuid = mFilterTxtVw.getText().toString();
+            if(uuid.length() == 36) {
+                // Stop the old scan.
+                stopLEScan();
+                mDeviceAdapter.clearData();
+                // Start a new scan.
+                startLEScan(UUID.fromString(uuid));
+                return true;
+            }
+            mFilterTxtVw.setError("Enter a valid UUID String");
+            return true;
+        }
+        return false;
+    }
+
+    /**
+     * OnClick method for starting a LE scan.
+     *
+     * @param view
+     */
+    public void scan(View view) {
+        String uuid = mFilterTxtVw.getText().toString();
+        if(uuid.length() == 36) {
+            // Stop the old scan.
+            stopLEScan();
+            mDeviceAdapter.clearData();
+            // Start a new scan.
+            startLEScan(UUID.fromString(uuid));
+            return;
+        }
+        else {
+            startLEScan();
+        }
+        mFilterTxtVw.setError("Enter a valid UUID String");
+    }
+
+
+//    private String createUUIDString(String dumbString) {
+//        if(dumbString.length() == 32) {
+//            StringBuilder builder = new StringBuilder(dumbString);
+//            builder.insert(20, "-");
+//            builder.insert(16, "-");
+//            builder.insert(12, "-");
+//            builder.insert(8, "-");
+//            return builder.toString();
+//        }
+//        throw new IllegalArgumentException("Invalid UUID string: " + dumbString);
+//    }
 }

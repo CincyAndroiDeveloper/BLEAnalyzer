@@ -25,7 +25,8 @@
         </activity>
         <activity android:name=".ConnectionActivity"
             android:label="Connectr"
-            android:parentActivityName=".ListLEDevicesActivity">
+            android:parentActivityName=".ListLEDevicesActivity"
+            android:screenOrientation="portrait">
         </activity>
     </application>
 

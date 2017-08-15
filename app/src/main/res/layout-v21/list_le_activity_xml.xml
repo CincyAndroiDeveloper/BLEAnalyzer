@@ -24,6 +24,29 @@
             android:background="?attr/colorPrimary"
             app:layout_scrollFlags="scroll|enterAlways"
             app:popupTheme="@style/ThemeOverlay.AppCompat.Light"
-            android:elevation="4dp"/>
+            android:elevation="4dp">
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal">
+
+                <EditText
+                    android:id="@+id/services_uuid"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight=".85"
+                    android:singleLine="true"
+                    android:hint="Service: UUID"
+                    android:imeOptions="flagNoExtractUi|actionDone"/>
+
+                <ImageButton
+                    android:id="@+id/scan_button"
+                    android:layout_width="45dp"
+                    android:layout_height="45dp"
+                    android:background="@android:color/transparent"
+                    android:src="@drawable/ic_scan"
+                    android:onClick="scan"/>
+            </LinearLayout>
+        </android.support.v7.widget.Toolbar>
     </android.support.design.widget.AppBarLayout>
 </android.support.design.widget.CoordinatorLayout>

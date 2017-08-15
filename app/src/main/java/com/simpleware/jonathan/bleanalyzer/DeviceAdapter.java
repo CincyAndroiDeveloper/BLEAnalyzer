@@ -37,6 +37,13 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceViewHolder> {
         notifyDataSetChanged();
     }
 
+    public void clearData() {
+        int size = mDevices.size();
+        mDevices.clear();
+        notifyItemRangeRemoved(0, size);
+
+    }
+
     public void addDeviceAndRssi(BluetoothDevice device, int rssi) {
         int size = mDevices.size();
         for (int i = 0; i < size; i++) {
@@ -65,7 +72,7 @@ public class DeviceAdapter extends RecyclerView.Adapter<DeviceViewHolder> {
     @Override
     public DeviceViewHolder onCreateViewHolder(ViewGroup parent, int viewType) {
         LayoutInflater inflater = LayoutInflater.from(parent.getContext());
-        return new DeviceViewHolder(inflater.inflate(R.layout.device_item, parent, false));
+        return new DeviceViewHolder(inflater.inflate(R.layout.device_item, parent, false), mListener);
     }
 
     @Override

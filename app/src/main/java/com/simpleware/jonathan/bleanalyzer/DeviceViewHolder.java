@@ -14,8 +14,9 @@ public class DeviceViewHolder extends RecyclerView.ViewHolder implements View.On
     public TextView deviceRSSITxtVw;
     public ViewOnClickListener mListener;
 
-    public DeviceViewHolder(View itemView) {
+    public DeviceViewHolder(View itemView, ViewOnClickListener listener) {
         super(itemView);
+        mListener = listener;
         itemView.setOnClickListener(this);
         deviceNameTxtVw = (TextView) itemView.findViewById(R.id.device_name_txtVw);
         deviceRSSITxtVw = (TextView) itemView.findViewById(R.id.device_rssi_txtVw);
@@ -24,6 +25,8 @@ public class DeviceViewHolder extends RecyclerView.ViewHolder implements View.On
     @Override
     public void onClick(View v) {
         // Pass the selected view, and the adapter position that corresponds to this View.
-        mListener.onViewClicked(v, getAdapterPosition());
+        if(mListener != null) {
+            mListener.onViewClicked(v, getAdapterPosition());
+        }
     }
 }
