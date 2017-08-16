@@ -225,16 +225,21 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
                 if(bluetoothLeScanner != null) {
                     // Customize the ScanSettings to aggressively scan for the Bluetooth LE.
                     ScanSettings.Builder builder = new ScanSettings.Builder();
+
+                    // If available we want to receive a callback for every advertising packet that matches the scan filter.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         builder.setCallbackType(CALLBACK_TYPE_ALL_MATCHES);
                     }
+                    // If available, we want to maches faster ignoringif the signal strength is weak and only a few detections in a duration.
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                         builder.setMatchMode(MATCH_MODE_AGGRESSIVE);
                     }
                     // We want a delay as short as possible. Don't wait to return the result.
                     builder.setReportDelay(0);
+                    // This is power hungry and indicates to the hardware that we want a heavy duty scan to take place.
                     builder.setScanMode(SCAN_MODE_LOW_LATENCY);
                     List<ScanFilter> filters = null;
+                    // If we were passed a valid UUID, construct a ScanFilter and add it so we only return LE devices that match the ScanFilter.
                     if(uuid != null) {
                         ScanFilter.Builder filterBuilder = new ScanFilter.Builder();
                         filterBuilder.setServiceUuid(new ParcelUuid(uuid));
@@ -259,6 +264,7 @@ public class ListLEDevicesActivity extends AppCompatActivity implements Bluetoot
         if(mAdapter != null) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
                 BluetoothLeScanner bluetoothLeScanner = mAdapter.getBluetoothLeScanner();
+                // Perform a nul check here beceause the bluetooth adapter can and will return a null BLEScanner if bluetooth isn't enabled.
                 if(bluetoothLeScanner != null) {
                     bluetoothLeScanner.stopScan(mScanCallback);
                 }
